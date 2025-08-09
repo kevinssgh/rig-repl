@@ -1,3 +1,25 @@
+//! Rig Agent module.
+//!
+//! Provides a REPL interface to interact with Claude via the `rig` framework,
+//! enhanced with RAG (retrieval-augmented generation) context and MCP tools.
+//!
+//! Responsibilities:
+//! - Connects to Anthropic's API with a configured model.
+//! - Builds a vector index from local documentation sources for contextual responses.
+//! - Connects to an MCP server and registers available tools with the agent.
+//! - Runs an interactive REPL loop to process natural language queries.
+//!
+//! Key types:
+//! - [`RigAgent`]: Wraps an [`Agent`] instance with tool integration and RAG context.
+//!
+//! Key methods:
+//! - [`RigAgent::new`]: Builds the agent with configured model, RAG index, and MCP tools.
+//! - [`RigAgent::start_repl`]: Starts an interactive loop to send prompts and display replies.
+//! - [`RigAgent::get_mcp_tools`]: Connects to MCP server, retrieves tool list, and returns the client.
+//!
+//! The REPL supports multi-turn conversations, tool use, and local knowledge base lookups.
+//!
+
 use mcp_core::client::{Client, ClientBuilder};
 use mcp_core::transport::ClientSseTransport;
 use mcp_core::types::ToolsListResponse;
@@ -19,8 +41,14 @@ pub struct RigAgent {
 
 /// Implement Rig Agent
 impl RigAgent {
-    /// Construct new instance
+    /// Creates a new `RigAgent`.
+    ///
+    /// Builds an Anthropic client with the given API key and model,
+    /// sets up a RAG vector index from local docs,
+    /// connects to the MCP server to load available tools,
+    /// and configures the agent with preamble and dynamic context.
     pub async fn new(cfg: Config, model: &str) -> anyhow::Result<Self> {
+        tracing::info!("Creating new Agent");
         let client = anthropic::ClientBuilder::new(&cfg.api_key)
             .build()
             .expect("returns provider client");
@@ -52,8 +80,13 @@ impl RigAgent {
         Ok(Self { provider: agent })
     }
 
-    /// Start REPL loop
+    /// Starts the interactive REPL loop.
+    ///
+    /// Reads user input lines, sends prompts to the agent,
+    /// handles multi-turn conversations with tool usage,
+    /// and displays responses or errors.
     pub async fn start_repl(&self) -> anyhow::Result<()> {
+        tracing::info!("Starting interactive REPL...");
         let mut rl = DefaultEditor::new()?;
         let mut history: Vec<Message> = Vec::new();
 
@@ -94,10 +127,16 @@ impl RigAgent {
         Ok(())
     }
 
-    /// Get MCP tools
+    /// Connects to the MCP server at the given address.
+    ///
+    /// Opens an SSE transport client,
+    /// initializes the connection,
+    /// retrieves the list of available tools,
+    /// and returns both the tools and client.
     pub async fn get_mcp_tools(
         bind_addr: &str,
     ) -> anyhow::Result<(ToolsListResponse, Client<ClientSseTransport>)> {
+        tracing::info!("Retrieving MCP tools from Server");
         let sse_url = format!("http://{bind_addr}/sse");
 
         // Connect to MCP server via SSE transport
@@ -113,10 +152,12 @@ impl RigAgent {
         Ok((tools_list_res, mcp_client))
     }
 
+    /// Displays the agent’s reply in a user-friendly format.
     pub fn display_response(reply: &str) {
         println!("\nClaude:\n{reply}\n");
     }
 
+    /// Displays the agent’s reply in a user-friendly format.
     pub fn display_prompt_err(err: PromptError) {
         println!("Sorry there was an error processing your input: {err}");
     }

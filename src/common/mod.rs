@@ -1,3 +1,23 @@
+//! Configuration module.
+//!
+//! Loads environment variables required for running the application,
+//! including API keys, server bind address, and directories for the
+//! retrieval-augmented generation (RAG) system.
+//!
+//! Constants:
+//! - Environment variable names for server config, API keys, and Uniswap doc/source directories.
+//!
+//! Functions:
+//! - `get_env_var`: Reads an environment variable and returns its value.
+//! - `get_bind_address`: Combines server address and port into a bindable string.
+//!
+//! Structs:
+//! - [`Config`]: Holds all runtime configuration values. Built from environment variables
+//!   in [`Config::new`], with mandatory variables causing a panic if missing.
+//!
+//! This ensures all required runtime parameters are present before the
+//! application starts, avoiding partial or invalid configuration at runtime.
+
 const ENV_SERVER_ADDRESS: &str = "MCP_SERVER_ADDRESS";
 const ENV_SERVER_PORT: &str = "MCP_SERVER_PORT";
 const ENV_ANTHROPIC_API_KEY: &str = "ANTHROPIC_API_KEY";
