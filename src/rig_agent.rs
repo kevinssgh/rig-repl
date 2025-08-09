@@ -28,15 +28,22 @@ use rig::client::CompletionClient;
 use rig::completion::{Prompt, PromptError};
 use rig::message::Message;
 use rig::providers::anthropic;
+use rig::providers::openai::EmbeddingModel;
+use rig::vector_store::in_memory_store::InMemoryVectorIndex;
 use rustyline::DefaultEditor;
 
 use crate::common::Config;
-use crate::rag_builder::RAGBuilder;
+use crate::rag_builder::{
+    RAGBuilder,
+    UniswapDoc,
+};
+use crate::rag_middleware::RagMiddleware;
 
 const PROCESSING_MESSAGE: &str = "Claude: Processing Request...";
 
 pub struct RigAgent {
-    provider: Agent<anthropic::completion::CompletionModel>,
+    agent: Agent<anthropic::completion::CompletionModel>,
+    pub(crate) index: InMemoryVectorIndex<EmbeddingModel, UniswapDoc>,
 }
 
 /// Implement Rig Agent
@@ -74,10 +81,10 @@ impl RigAgent {
 
         let agent = agent_builder
             .preamble(&cfg.preamble)
-            .dynamic_context(3, index)
+            //.dynamic_context(3, index)
             .build();
 
-        Ok(Self { provider: agent })
+        Ok(Self { agent, index })
     }
 
     /// Starts the interactive REPL loop.
@@ -103,10 +110,13 @@ impl RigAgent {
 
                     println!("{PROCESSING_MESSAGE}");
 
+                    // Process through RAG middleware
+                    let query = self.query_rag(&line).await?;
+
                     // Process input through agent
                     match self
-                        .provider
-                        .prompt(line)
+                        .agent
+                        .prompt(query)
                         .multi_turn(20)
                         .with_history(&mut history)
                         .await

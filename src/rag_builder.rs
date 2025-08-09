@@ -18,7 +18,7 @@ use rig::providers::openai::client::Client;
 use rig::providers::openai::{EmbeddingModel, TEXT_EMBEDDING_ADA_002};
 use rig::vector_store::in_memory_store::{InMemoryVectorIndex, InMemoryVectorStore};
 use rig::{Embed, embeddings::EmbeddingsBuilder};
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 use std::fs;
 use text_splitter::CodeSplitter;
 use walkdir::WalkDir;
@@ -27,11 +27,11 @@ const MD_EXTENSION: &str = "md";
 const SOL_EXTENSION: &str = "sol";
 
 /// Represents a file with its data indexed into segments
-#[derive(Embed, Serialize, Clone, Debug, Eq, PartialEq, Default)]
+#[derive(Embed, Serialize, Deserialize, Clone, Debug, Eq, PartialEq, Default)]
 pub struct UniswapDoc {
     name: String,
     #[embed]
-    content: Vec<String>,
+    pub(crate) content: Vec<String>,
 }
 
 impl UniswapDoc {

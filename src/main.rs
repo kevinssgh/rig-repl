@@ -15,6 +15,7 @@
 mod common;
 mod rag_builder;
 mod rig_agent;
+mod rag_middleware;
 
 use common::Config;
 use rig::providers::anthropic;
