@@ -9,6 +9,7 @@ use rig::providers::anthropic;
 use rustyline::DefaultEditor;
 
 use crate::common::Config;
+use crate::rag_builder::RAGBuilder;
 
 const PROCESSING_MESSAGE: &str = "Claude: Processing Request...";
 
@@ -19,10 +20,16 @@ pub struct RigAgent {
 /// Implement Rig Agent
 impl RigAgent {
     /// Construct new instance
-    pub async fn new(cfg: Config, model: &str) -> Self {
+    pub async fn new(cfg: Config, model: &str) -> anyhow::Result<Self> {
         let client = anthropic::ClientBuilder::new(&cfg.api_key)
             .build()
             .expect("returns provider client");
+
+        // Read local filesystem for relevant documentation and create Vector Index
+        let index = RAGBuilder::new(cfg.clone())
+            .ingest_docs()? // Walks through each file specified by directories, and indexes chunks of data
+            .build()
+            .await?;
 
         let mut agent_builder = client.agent(model);
 
@@ -37,9 +44,12 @@ impl RigAgent {
                 builder.mcp_tool(tool, mcp_client.clone())
             });
 
-        let agent = agent_builder.preamble(&cfg.preamble).build();
+        let agent = agent_builder
+            .preamble(&cfg.preamble)
+            .dynamic_context(3, index)
+            .build();
 
-        Self { provider: agent }
+        Ok(Self { provider: agent })
     }
 
     /// Start REPL loop
@@ -77,7 +87,7 @@ impl RigAgent {
                     }
                 }
                 Err(e) => {
-                    println!("read line error: {}", e)
+                    println!("read line error: {e}")
                 }
             }
         }
@@ -108,6 +118,6 @@ impl RigAgent {
     }
 
     pub fn display_prompt_err(err: PromptError) {
-        println!("Sorry there was an error processing your input: {}", err);
+        println!("Sorry there was an error processing your input: {err}");
     }
 }
