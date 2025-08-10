@@ -10,7 +10,7 @@ pub trait RagMiddleware {
 
 impl RagMiddleware for RigAgent {
     async fn query_rag(&self, query: &str) -> anyhow::Result<String> {
-        let req = VectorSearchRequest::builder().query(query).samples(3).build()?;
+        let req = VectorSearchRequest::builder().query(query).samples(1).build()?;
         let search_results: Vec<(f64, String, UniswapDoc)> =  self.index.top_n(req).await?;
 
         // If there were no relevant results, just leave the original query
