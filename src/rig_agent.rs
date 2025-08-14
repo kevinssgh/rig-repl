@@ -35,15 +35,18 @@ use rustyline::DefaultEditor;
 use crate::common::Config;
 use crate::rag_builder::{
     RAGBuilder,
-    UniswapDoc,
+    UniswapChunk,
 };
 use crate::rag_middleware::RagMiddleware;
 
 const PROCESSING_MESSAGE: &str = "Claude: Processing Request...";
+const MAX_DEPTH: usize = 20;
+const MAX_HISTORY: usize = 10;
 
 pub struct RigAgent {
     agent: Agent<anthropic::completion::CompletionModel>,
-    pub(crate) index: InMemoryVectorIndex<EmbeddingModel, UniswapDoc>,
+    pub(crate) index: InMemoryVectorIndex<EmbeddingModel, UniswapChunk>,
+    pub(crate) history: Vec<Message>,
 }
 
 /// Implement Rig Agent
@@ -84,7 +87,7 @@ impl RigAgent {
             //.dynamic_context(3, index)
             .build();
 
-        Ok(Self { agent, index })
+        Ok(Self { agent, index, history: Vec::new() })
     }
 
     /// Starts the interactive REPL loop.
@@ -92,10 +95,9 @@ impl RigAgent {
     /// Reads user input lines, sends prompts to the agent,
     /// handles multi-turn conversations with tool usage,
     /// and displays responses or errors.
-    pub async fn start_repl(&self) -> anyhow::Result<()> {
+    pub async fn start_repl(&mut self) -> anyhow::Result<()> {
         tracing::info!("Starting interactive REPL...");
         let mut rl = DefaultEditor::new()?;
-        let mut history: Vec<Message> = Vec::new();
 
         println!(
             "🔧 Claude REPL with Tools (type natural language, like 'Check ETH balance of Alice')"
@@ -117,8 +119,8 @@ impl RigAgent {
                     match self
                         .agent
                         .prompt(query)
-                        .multi_turn(20)
-                        .with_history(&mut history)
+                        .multi_turn(MAX_DEPTH)
+                        .with_history(&mut self.history)
                         .await
                     {
                         Ok(reply) => {
@@ -128,6 +130,11 @@ impl RigAgent {
                             Self::display_prompt_err(e);
                         }
                     }
+
+                    if self.history.len() > MAX_HISTORY {
+                        self.history.drain(0..self.history.len()-MAX_HISTORY);
+                    }
+
                 }
                 Err(e) => {
                     println!("read line error: {e}")
