@@ -28,17 +28,17 @@ const SOL_EXTENSION: &str = "sol";
 
 /// Represents a file with its data indexed into segments
 #[derive(Embed, Serialize, Deserialize, Clone, Debug, Eq, PartialEq, Default)]
-pub struct UniswapDoc {
-    name: String,
+pub struct UniswapChunk {
+    file_name: String,
     #[embed]
-    pub(crate) content: Vec<String>,
+    pub(crate) content: String,
 }
 
-impl UniswapDoc {
-    fn new(name: String) -> Self {
+impl UniswapChunk {
+    fn new(file_name: &str) -> Self {
         Self {
-            name,
-            content: Vec::new(),
+            file_name: String::from(file_name),
+            content: String::new(),
         }
     }
 }
@@ -46,7 +46,7 @@ impl UniswapDoc {
 /// Builder for retrieval-augmented generation (RAG) vector index
 /// that ingests documentation files and prepares an embedding index.
 pub struct RAGBuilder {
-    docs: Vec<UniswapDoc>,
+    docs: Vec<UniswapChunk>,
     cfg: Config,
 }
 
@@ -60,7 +60,7 @@ impl RAGBuilder {
 
     /// Builds an in-memory vector index using OpenAI embeddings
     /// from the ingested documents.
-    pub async fn build(self) -> anyhow::Result<InMemoryVectorIndex<EmbeddingModel, UniswapDoc>> {
+    pub async fn build(self) -> anyhow::Result<InMemoryVectorIndex<EmbeddingModel, UniswapChunk>> {
         tracing::info!("Setting up Vector Index for Uniswap docs");
         // Create OpenAI client
         let openai_api_key = self.cfg.openai_api_key.clone();
@@ -123,14 +123,14 @@ impl RAGBuilder {
     /// Processes a Markdown file by splitting it into chunks
     /// and adding them to the document content.
     fn ingest_md_file(mut self, file: String, name: String) -> anyhow::Result<Self> {
-        let mut doc = UniswapDoc::new(name);
         let splitter = text_splitter::MarkdownSplitter::new(text_splitter::ChunkConfig::new(1000));
+
         // Using a text splitter specifically for markdown files to maintain headers and other tags
         for chunk in splitter.chunks(&file) {
-            doc.content.push(String::from(chunk))
+            let mut doc = UniswapChunk::new(&name);
+            doc.content = String::from(chunk);
+            self.docs.push(doc);
         }
-        tracing::debug!("[ingest_md_file]: Number of chunks ingested: {}", doc.content.len());
-        self.docs.push(doc);
 
         Ok(self)
     }
@@ -138,17 +138,16 @@ impl RAGBuilder {
     /// Processes a Solidity source file by splitting it into code chunks
     /// using a language-aware splitter and adding them to the document content.
     fn ingest_solidity_file(mut self, file: String, name: String) -> anyhow::Result<Self> {
-        let mut doc = UniswapDoc::new(name);
-        let splitter = CodeSplitter::new(
+        let code_splitter = CodeSplitter::new(
             tree_sitter_solidity::LANGUAGE,
             text_splitter::ChunkConfig::new(1000),
         )?;
 
-        for chunk in splitter.chunks(&file) {
-            doc.content.push(String::from(chunk))
+        for chunk in code_splitter.chunks(&file) {
+            let mut doc = UniswapChunk::new(&name);
+            doc.content = String::from(chunk);
+            self.docs.push(doc);
         }
-        tracing::debug!("[ingest_solidity_file]: Number of chunks ingested: {}", doc.content.len());
-        self.docs.push(doc);
 
         Ok(self)
     }
